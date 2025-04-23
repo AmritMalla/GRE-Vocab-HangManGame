@@ -1,4 +1,4 @@
-let options = {
+window.options = {
     start: [
         {
             "aberrant": "departing from an accepted standard or norm; deviating from the right path"

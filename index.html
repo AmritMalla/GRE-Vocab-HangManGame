@@ -41,7 +41,7 @@
         </div>
 
         <div class="hint-container">
-            <button id="hint-button" onclick="useHint()">Use Hint</button>
+            <button id="hint-button">Use Hint</button>
             <span>Hints left: <span id="hints-left">3</span></span>
         </div>
 
@@ -72,9 +72,10 @@
             <button id="new-game-button">New Game</button>
         </div>
     </div>
-    <script src="index.js"></script>
+    <!-- Load data.js first so options is available -->
     <script src="data.js"></script>
-      
+    <!-- Then load index.js which depends on options -->
+    <script src="index.js"></script>
 </body>
 
 </html>
