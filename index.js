@@ -28,6 +28,59 @@ let hintsRemaining = 3;
 let gameTimer;
 let seconds = 0;
 
+// Add event listener for the start game button
+document.addEventListener('DOMContentLoaded', function () {
+    // Make a backup of the original options for filtering
+    if (window.options) {
+        originalOptions = JSON.parse(JSON.stringify(window.options));
+    }
+
+    // Initialize game state
+    initializer = () => {
+        // Clear previous words and hints
+        letterContainer.classList.add("hide");
+        newGameContainer.classList.add("hide");
+        
+        // Display options for game categories
+        displayOptions();
+        
+        // Display score
+        displayScores();
+        
+        // Display word history
+        displayWordHistory();
+        
+        // Set difficulty from saved preferences
+        const scores = initializeScoreSystem();
+        if (scores.difficulty) {
+            setDifficulty(scores.difficulty);
+        }
+        
+        // Try to load saved game
+        if (loadGameProgress()) {
+            // If game was loaded, generate the keyboard
+            createLetterButtons();
+            letterContainer.classList.remove("hide");
+        }
+    };
+    
+    // Call initializer
+    initializer();
+    
+    const startGameBtn = document.getElementById('start-game-btn');
+    if (startGameBtn) {
+        startGameBtn.addEventListener('click', function () {
+            window.generateWord('start');
+        });
+    }
+
+    // Set up the hint button
+    hintButton.addEventListener("click", window.useHint);
+    
+    // New game button event listener
+    newGameButton.addEventListener("click", initializer);
+});
+
 // Theme toggle functionality
 themeToggle.addEventListener("click", () => {
     document.body.classList.toggle("dark-mode");
@@ -119,7 +172,7 @@ const triggerWinAnimation = () => {
     confetti({
         particleCount: 100,
         spread: 70,
-        origin: { y: 0.6 }
+        origin: {y: 0.6}
     });
 };
 
@@ -231,14 +284,14 @@ const displayWordHistory = () => {
 // Filter words by length
 const applyWordLengthFilter = (filterValue) => {
     // Make sure options is defined and has been copied
-    if (!window.options || Object.keys(originalOptions).length === 0) {
+    if ((!options && !window.options) || Object.keys(originalOptions).length === 0) {
         // If options aren't available yet, delay and retry
         setTimeout(() => applyWordLengthFilter(filterValue), 100);
         return;
     }
-    
+
     // Reset options to original first
-    window.options = JSON.parse(JSON.stringify(originalOptions));
+    options = JSON.parse(JSON.stringify(originalOptions));
 
     // Apply filter
     if (filterValue !== 'all') {
@@ -261,13 +314,16 @@ const applyWordLengthFilter = (filterValue) => {
                 return;
         }
 
-        for (let category in window.options) {
-            window.options[category] = window.options[category].filter(wordObj => {
+        for (let category in options) {
+            options[category] = options[category].filter(wordObj => {
                 const word = Object.keys(wordObj)[0];
                 return word.length >= minLength && word.length <= maxLength;
             });
         }
     }
+
+    // Make the filtered options available as window.options as well
+    window.options = options;
 
     // Restart game with filtered words
     initializer();
@@ -305,7 +361,7 @@ const setDifficulty = (level) => {
 };
 
 // Hints system - This must be a global function since it's called from HTML
-window.useHint = function() {
+window.useHint = function () {
     if (hintsRemaining <= 0) return;
 
     const dashes = document.getElementsByClassName('dashes');
@@ -415,15 +471,26 @@ const loadGameProgress = () => {
 
 // Display option buttons
 const displayOptions = () => {
-    optionsContainer.innerHTML += `<h3>Click to start the game</h3>`;
+    console.log("Displaying options...");
+    optionsContainer.innerHTML = `<h3>Click to start the game</h3>`;
     let buttonCon = document.createElement("div");
     buttonCon.style.display = "flex";
     buttonCon.style.justifyContent = "center";
     buttonCon.style.alignItems = "center";
-    for (let value in window.options) {
-        buttonCon.innerHTML += `<button class="option-button" onclick="window.generateWord('${value}')">${value}</button>`;
-    }
+
+    // Create a start button regardless of options structure
+    buttonCon.innerHTML = `<button class="option-button" id="start-game-btn">Start</button>`;
     optionsContainer.appendChild(buttonCon);
+
+    // Add event listener to the start button
+    document.getElementById("start-game-btn").addEventListener("click", function () {
+        // Check if window.options exists and has the start array
+        if (window.options && window.options.start && window.options.start.length > 0) {
+            window.generateWord("start");
+        } else {
+            alert("Game data not loaded properly. Please refresh the page.");
+        }
+    });
 };
 
 // Block all the Buttons
@@ -450,7 +517,7 @@ const blocker = () => {
 };
 
 // Word Generator
-window.generateWord = function(optionValue) {
+window.generateWord = function (optionValue) {
     let optionsButtons = document.querySelectorAll(".option-button");
     // If optionValue matches the button innerText then highlight the button
     optionsButtons.forEach((button) => {
@@ -476,7 +543,9 @@ window.generateWord = function(optionValue) {
     document.getElementById('hints-left').textContent = hintsRemaining;
     hintButton.disabled = false;
 
-    let optionArray = window.options[optionValue];
+    // Use either options or window.options, whichever is available
+    const currentOptions = options || window.options;
+    let optionArray = currentOptions[optionValue];
     // choose random word
     chosenObj = optionArray[Math.floor(Math.random() * optionArray.length)];
     chosenWord = Object.keys(chosenObj)[0];
@@ -490,9 +559,165 @@ window.generateWord = function(optionValue) {
     hintsContainer.innerHTML = "<h4>Hint:</h4><hr><br> " + wordMeaning + "<br><hr><br>";
 
     // Clear previous canvas
-    let { initialDrawing } = canvasCreator();
+    let {initialDrawing} = canvasCreator();
     initialDrawing();
 
     // Create letter buttons
     createLetterButtons();
+};
+
+// Function to handle letter button clicks
+const letterButtonHandler = (letter) => {
+    // Convert to lowercase for comparison
+    const charArray = chosenWord.toLowerCase().split("");
+    // disable clicked button
+    let button = document.getElementById(`letter-${letter}`);
+    button.disabled = true;
+
+    // If letter is in word
+    if (charArray.includes(letter)) {
+        // Mark button as correct
+        button.classList.add("correct");
+        
+        // Display all instances of the letter
+        charArray.forEach((char, index) => {
+            if (char === letter) {
+                // Display letter
+                const dashElements = document.getElementsByClassName("dashes");
+                dashElements[index].textContent = chosenWord[index];
+                animateLetterReveal(dashElements[index]);
+                
+                // Increment win count
+                winCount += 1;
+            }
+        });
+    } else {
+        // Wrong letter
+        button.classList.add("wrong");
+        
+        // Increment count and update hangman drawing
+        count += 1;
+        drawMan(count);
+        animateWrongGuess();
+    }
+
+    // Check win/loss condition
+    if (winCount === charArray.length) {
+        // Player wins
+        resultText.innerHTML = `<h2 class='win-msg'>You Win!!</h2><p>The word was <span>${chosenWord}</span></p>`;
+        updateScores("win", chosenWord);
+        triggerWinAnimation();
+        blocker();
+    } else if (count === maxWrongAttempts) {
+        // Player loses
+        resultText.innerHTML = `<h2 class='lose-msg'>Game Over!</h2><p>The word was <span>${chosenWord}</span></p>`;
+        updateScores("lose", chosenWord);
+        blocker();
+    }
+};
+
+// Create letter buttons
+const createLetterButtons = () => {
+    // Clear previous buttons
+    letterContainer.innerHTML = "";
+
+    // Create buttons for A-Z
+    for (let i = 97; i <= 122; i++) {
+        const letter = String.fromCharCode(i);
+        const button = document.createElement("button");
+        button.classList.add("letter-button");
+        button.id = `letter-${letter}`;
+        button.textContent = letter.toUpperCase();
+        
+        // Add click handler
+        button.addEventListener("click", () => letterButtonHandler(letter));
+        
+        // Add to container
+        letterContainer.appendChild(button);
+    }
+};
+
+// Canvas for Hangman drawing
+const canvasCreator = () => {
+    let context = canvas.getContext("2d");
+    context.beginPath();
+    context.strokeStyle = "#000000";
+    context.lineWidth = 2;
+
+    // For drawing lines
+    const drawLine = (fromX, fromY, toX, toY) => {
+        context.moveTo(fromX, fromY);
+        context.lineTo(toX, toY);
+        context.stroke();
+    };
+
+    // For drawing circles
+    const drawCircle = (centerX, centerY, radius) => {
+        context.beginPath();
+        context.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+        context.stroke();
+    };
+
+    // Clear canvas
+    const initialDrawing = () => {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Drawing the frame
+        drawLine(10, 130, 130, 130); // Base
+        drawLine(10, 10, 10, 130); // Left pole
+        drawLine(10, 10, 70, 10); // Top bar
+        drawLine(70, 10, 70, 20); // Noose
+    };
+
+    // Draw the man part by part
+    const drawMan = (state) => {
+        switch (state) {
+            case 1:
+                // Head
+                drawCircle(70, 30, 10);
+                break;
+            case 2:
+                // Body
+                drawLine(70, 40, 70, 80);
+                break;
+            case 3:
+                // Left arm
+                drawLine(70, 50, 50, 70);
+                break;
+            case 4:
+                // Right arm
+                drawLine(70, 50, 90, 70);
+                break;
+            case 5:
+                // Left leg
+                drawLine(70, 80, 50, 110);
+                break;
+            case 6:
+                // Right leg
+                drawLine(70, 80, 90, 110);
+                break;
+            case 7:
+                // Additional details - eyes (X shape)
+                drawLine(65, 25, 75, 35); 
+                drawLine(75, 25, 65, 35);
+                break;
+            case 8:
+                // Additional details - sad mouth
+                context.beginPath();
+                context.arc(70, 35, 5, 0, Math.PI, true);
+                context.stroke();
+                break;
+            default:
+                break;
+        }
+    };
+
+    // Return the drawing functions
+    return { initialDrawing, drawMan };
+};
+
+// Global function to draw hangman
+window.drawMan = (count) => {
+    const { drawMan } = canvasCreator();
+    drawMan(count);
 };
